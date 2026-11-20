@@ -2,6 +2,7 @@
 
 [![Arch Linux](https://img.shields.io/badge/Arch%20Linux-Supported-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org)
 [![CachyOS](https://img.shields.io/badge/CachyOS-Optimized-00A389)](https://cachyos.org)
+[![Rust](https://img.shields.io/badge/Rust-Compiled%20Binary-DEA584?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Complete hardware enablement suite and automated fixes for the **ASUS Zenbook 14X OLED (UX5401 / UX5401ZA / Space Edition)** on **Arch Linux** and **CachyOS**.
@@ -12,15 +13,15 @@ Out of the box, several proprietary ASUS hardware features are non-functional un
 
 ## 🚀 One-Liner Installation
 
-Open your terminal and run the following single command to activate all ASUS Zenbook features automatically:
+Open your terminal and run the following command. It downloads the installer, sets up all hardware features, and cleans up after itself automatically:
 
 ```bash
-git clone https://github.com/marcscodebase/asus-zenbook-ux5401-linux.git && cd asus-zenbook-ux5401-linux && sudo ./install.sh --all
+curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-ux5401-linux/main/install.sh -o install.sh && sudo bash install.sh --all && rm -f install.sh
 ```
 
-*(Alternatively, via curl)*:
+*(Or if you prefer cloning the repository)*:
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-ux5401-linux/main/install.sh) --all
+git clone https://github.com/marcscodebase/asus-zenbook-ux5401-linux.git && cd asus-zenbook-ux5401-linux && sudo ./install.sh --all
 ```
 
 ---
@@ -30,7 +31,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-u
 | Feature | Hardware Identifier | Default Linux State | With This Suite |
 | :--- | :--- | :---: | :---: |
 | **Fingerprint Sensor** | Elan `04f3:0c6e` (Power button) | ❌ Broken (Stock driver fails) | ✅ **Working** (`sudo`, `polkit`, GDM login) |
-| **E-Shutter (Camera Privacy Shield)** | ACPI WMI motor (`0x00060078`) | ❌ Inactive (F10 key dead) | ✅ **Working** (F10 key + Desktop OSD) |
+| **E-Shutter (Camera Privacy Shield)** | ACPI WMI motor (`0x00060078`) | ❌ Inactive (F10 key dead) | ✅ **Working** (F10 key + Desktop OSD via Rust binary) |
 | **ASUS NumberPad 2.0** | Touchpad Numpad (`ASUE140D`) | ❌ Inactive | ✅ **Working** (Top-right corner toggle) |
 | **Microphone Mute LED** | `platform::micmute` (F9 key) | ❌ Out of sync | ✅ **Working** (Hardware LED synced with ALSA) |
 | **Battery Health Care** | `charge_control_end_threshold` | ❌ 100% constant charging | ✅ **Working** (Capped at 80% to protect battery) |
@@ -43,9 +44,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-u
 * Replaces the flawed upstream `libfprint` package with the community-patched `libfprint-elanpress-git` from the AUR, which correctly treats the `04f3:0c6e` reader as a touch/press sensor rather than a swipe sensor.
 * Configures PAM `/etc/pam.d/sudo` and `/etc/pam.d/polkit-1` so you can authorize terminal `sudo` commands and graphical root popups simply by touching the power button.
 
-### 2. Electronic Camera Shutter (`modules/02-camera-shutter.sh`)
-* Integrates the `acpi_call` kernel module to control the physical privacy motor via ASUS WMI calls (`\_SB.ATKD.WMNB`).
-* Deploys a zero-dependency background listener (`asus-camera-hotkey.service`) that captures the `KEY_CAMERA` hotkey press and drives the motor in real-time.
+### 2. Electronic Camera Shutter (`modules/02-camera-shutter.sh` & `src/`)
+* Written in **Rust**: Deploys a high-performance, compiled binary (`bin/asus-camera-shutter`) with zero runtime overhead (< 1 MB RAM).
+* Integrates `acpi_call` kernel module to control the physical privacy motor via ASUS WMI calls (`\_SB.ATKD.WMNB`).
+* Deploys a background daemon (`asus-camera-hotkey.service`) that captures the `KEY_CAMERA` hotkey press and drives the motor in real-time.
 * Shows a native desktop on-screen notification (*"Kamera-Blende geschlossen / geöffnet"*).
 
 ### 3. ASUS NumberPad 2.0 (`modules/03-numberpad.sh`)

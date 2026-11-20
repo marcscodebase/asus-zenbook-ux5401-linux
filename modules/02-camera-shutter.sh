@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Module 02: Electronic Camera Shutter (E-Shutter) Controller & Hotkey Hook
+# Uses compiled Rust binary (prebuilt or compiled on the fly)
 # ==============================================================================
 
 set -euo pipefail
@@ -24,10 +25,22 @@ install_camera_shutter() {
     modprobe acpi_call 2>/dev/null || true
     ok "Kernel module acpi_call configured and loaded."
 
-    info "Installing camera shutter scripts..."
-    install -m 755 "$ROOT_DIR/bin/asus-camera-shutter" /usr/local/bin/asus-camera-shutter
-    install -m 755 "$ROOT_DIR/bin/asus-camera-hotkey-listener.py" /usr/local/bin/asus-camera-hotkey-listener.py
-    ok "Scripts installed to /usr/local/bin."
+    info "Deploying asus-camera-shutter binary..."
+    local BIN_SRC="$ROOT_DIR/bin/asus-camera-shutter"
+
+    # If cargo is available and source exists, we can optionally build from source
+    if command -v cargo >/dev/null 2>&1 && [[ -f "$ROOT_DIR/Cargo.toml" && ! -f "$BIN_SRC" ]]; then
+        info "Building asus-camera-shutter from Rust source..."
+        (cd "$ROOT_DIR" && cargo build --release && cp target/release/asus-camera-shutter "$BIN_SRC")
+    fi
+
+    if [[ ! -f "$BIN_SRC" ]]; then
+        err "Binary $BIN_SRC not found. Please compile via 'cargo build --release'."
+        exit 1
+    fi
+
+    install -m 755 "$BIN_SRC" /usr/local/bin/asus-camera-shutter
+    ok "asus-camera-shutter installed to /usr/local/bin."
 
     info "Installing sudoers rule for user-space triggers..."
     install -m 440 "$ROOT_DIR/assets/sudoers/asus-zenbook-fixes" /etc/sudoers.d/asus-zenbook-fixes
@@ -49,7 +62,6 @@ uninstall_camera_shutter() {
     systemctl daemon-reload
 
     rm -f /usr/local/bin/asus-camera-shutter
-    rm -f /usr/local/bin/asus-camera-hotkey-listener.py
     rm -f /etc/sudoers.d/asus-zenbook-fixes
     rm -f /etc/modules-load.d/acpi_call.conf
     ok "Camera shutter controller uninstalled."

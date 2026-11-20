@@ -2,6 +2,7 @@
 # ==============================================================================
 # ASUS Zenbook UX5401 / UX5401ZA Linux Hardware Enablement Master Installer
 # Target: Arch Linux / CachyOS
+# Supports both local repository execution and standalone curl execution.
 # ==============================================================================
 
 set -euo pipefail
@@ -12,6 +13,25 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_URL="https://github.com/marcscodebase/asus-zenbook-ux5401-linux.git"
+TEMP_CLONE=""
+
+# Cleanup handler for standalone execution
+cleanup() {
+    if [[ -n "$TEMP_CLONE" && -d "$TEMP_CLONE" ]]; then
+        rm -rf "$TEMP_CLONE"
+    fi
+}
+trap cleanup EXIT
+
+# If executed standalone (e.g. via curl), fetch full repo into temp dir
+if [[ ! -d "$SCRIPT_DIR/modules" ]]; then
+    echo "Running in standalone mode. Fetching repository components..."
+    TEMP_CLONE=$(mktemp -d /tmp/asus-zenbook-ux5401-XXXXXX)
+    git clone --depth 1 "$REPO_URL" "$TEMP_CLONE"
+    SCRIPT_DIR="$TEMP_CLONE"
+fi
+
 MODULES_DIR="$SCRIPT_DIR/modules"
 
 info()  { echo -e "\e[34m[INFO]\e[0m $*"; }

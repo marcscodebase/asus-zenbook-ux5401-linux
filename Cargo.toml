@@ -1,0 +1,10 @@
+[package]
+name = "asus-camera-shutter"
+version = "0.1.0"
+edition = "2021"
+authors = ["Marc Saier <marc98711@gmail.com>"]
+description = "High-performance ASUS Zenbook E-Shutter camera controller and F10 hotkey listener daemon"
+license = "MIT"
+
+[dependencies]
+# Completely zero third-party dependencies - builds instantly with pure standard library

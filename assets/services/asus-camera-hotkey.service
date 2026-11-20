@@ -1,11 +1,11 @@
 [Unit]
-Description=ASUS Zenbook Camera E-Shutter Hotkey Listener
+Description=ASUS Zenbook Camera E-Shutter Hotkey Listener (Rust)
 After=systemd-udev-settle.service multi-user.target
 Wants=systemd-udev-settle.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/asus-camera-hotkey-listener.py
+ExecStart=/usr/local/bin/asus-camera-shutter daemon
 Restart=always
 RestartSec=3
 StandardOutput=journal
