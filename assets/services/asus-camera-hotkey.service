@@ -1,7 +1,6 @@
 [Unit]
 Description=ASUS Zenbook Camera E-Shutter Hotkey Listener (Rust)
-After=systemd-udev-settle.service multi-user.target
-Wants=systemd-udev-settle.service
+After=systemd-udev-trigger.service
 
 [Service]
 Type=simple
