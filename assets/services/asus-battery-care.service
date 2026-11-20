@@ -1,0 +1,11 @@
+[Unit]
+Description=ASUS Zenbook Battery Care (Limit charge to 80%)
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'if [ -f /sys/class/power_supply/BAT0/charge_control_end_threshold ]; then echo 80 > /sys/class/power_supply/BAT0/charge_control_end_threshold; fi'
+
+[Install]
+WantedBy=multi-user.target

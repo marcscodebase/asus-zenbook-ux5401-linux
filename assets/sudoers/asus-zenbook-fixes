@@ -1,0 +1,2 @@
+# Allow executing asus-camera-shutter without password for desktop user shortcuts
+ALL ALL=(root) NOPASSWD: /usr/local/bin/asus-camera-shutter

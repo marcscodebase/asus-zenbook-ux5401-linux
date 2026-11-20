@@ -1,0 +1,11 @@
+[Unit]
+Description=Synchronize ASUS Microphone Mute LED trigger
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo audio-micmute > /sys/devices/platform/asus-nb-wmi/leds/platform::micmute/trigger 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target

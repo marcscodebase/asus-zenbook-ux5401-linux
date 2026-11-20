@@ -1,0 +1,2 @@
+# ASUS Zenbook Mic Mute LED Trigger
+SUBSYSTEM=="leds", KERNEL=="platform::micmute", ATTR{trigger}="audio-micmute"

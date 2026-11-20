@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# ASUS Zenbook E-Shutter Camera Controller
+# Toggles the physical electronic webcam privacy shield via ACPI WMI call.
+# ==============================================================================
+
+set -euo pipefail
+
+ACPI_CALL="/proc/acpi/call"
+STATE_FILE="/var/run/asus-camera-shutter.state"
+
+# WMI Constants for ASUS UX5401 series
+# \_SB.ATKD.WMNB 0x00 0x53564544 0x0000000X00060078
+# 0x53564544 = 'DEVS' (Set Device State)
+# 0x53545344 = 'DSTS' (Get Device State)
+# 0x00060078 = Camera Shutter WMI Device ID
+CMD_CLOSE="\_SB.ATKD.WMNB 0x00 0x53564544 0x0000000000060078"
+CMD_OPEN="\_SB.ATKD.WMNB 0x00 0x53564544 0x0000000100060078"
+CMD_STATUS="\_SB.ATKD.WMNB 0x00 0x53545344 0x00060078"
+
+ensure_acpi_call() {
+    if [[ ! -e "$ACPI_CALL" ]]; then
+        modprobe acpi_call 2>/dev/null || true
+    fi
+    if [[ ! -e "$ACPI_CALL" ]]; then
+        echo "Error: $ACPI_CALL not found. Please install and load the acpi_call kernel module." >&2
+        exit 1
+    fi
+}
+
+send_notification() {
+    local state="$1"
+    local title="Kamera-Blende"
+    local msg=""
+    local icon=""
+
+    if [[ "$state" == "closed" ]]; then
+        msg="Kamera geschützt (Blende geschlossen)"
+        icon="camera-disabled"
+    else
+        msg="Kamera aktiv (Blende geöffnet)"
+        icon="camera-web"
+    fi
+
+    # Find active GUI sessions to display notification via notify-send
+    local active_users
+    active_users=$(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $3}' | sort -u || true)
+
+    for user in $active_users; do
+        local uid
+        uid=$(id -u "$user" 2>/dev/null || true)
+        if [[ -n "$uid" && -d "/run/user/$uid" ]]; then
+            sudo -u "$user" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+                notify-send -a "ASUS Hardware" -i "$icon" -h string:x-canonical-private-synchronous:asus-camera "$title" "$msg" 2>/dev/null || true
+        fi
+    done
+}
+
+get_status() {
+    ensure_acpi_call
+    echo "$CMD_STATUS" > "$ACPI_CALL"
+    local res
+    res=$(tr -d '\0' < "$ACPI_CALL" || true)
+
+    # Fallback to state file if DSTS returns ambiguous result
+    if [[ -f "$STATE_FILE" ]]; then
+        cat "$STATE_FILE"
+    else
+        echo "open"
+    fi
+}
+
+shutter_open() {
+    ensure_acpi_call
+    echo "$CMD_OPEN" > "$ACPI_CALL"
+    echo "open" > "$STATE_FILE"
+    send_notification "open"
+    echo "Camera shutter opened."
+}
+
+shutter_close() {
+    ensure_acpi_call
+    echo "$CMD_CLOSE" > "$ACPI_CALL"
+    echo "closed" > "$STATE_FILE"
+    send_notification "closed"
+    echo "Camera shutter closed."
+}
+
+shutter_toggle() {
+    local current
+    current=$(get_status)
+    if [[ "$current" == "closed" ]]; then
+        shutter_open
+    else
+        shutter_close
+    fi
+}
+
+action="${1:-toggle}"
+
+case "$action" in
+    open)
+        shutter_open
+        ;;
+    close)
+        shutter_close
+        ;;
+    toggle)
+        shutter_toggle
+        ;;
+    status)
+        get_status
+        ;;
+    *)
+        echo "Usage: $0 {toggle|open|close|status}" >&2
+        exit 1
+        ;;
+esac
