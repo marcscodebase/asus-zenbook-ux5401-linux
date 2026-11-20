@@ -40,7 +40,7 @@ install_camera_shutter() {
     local TARGET_USER="${SUDO_USER:-$USER}"
     if command -v cargo >/dev/null 2>&1 && [[ -f "$ROOT_DIR/Cargo.toml" ]]; then
         info "Building latest asus-camera-shutter from Rust source..."
-        if [[ "$TARGET_USER" != "root" && -w "$ROOT_DIR" ]]; then
+        if [[ "$TARGET_USER" != "root" ]] && sudo -u "$TARGET_USER" test -w "$ROOT_DIR"; then
             sudo -Hu "$TARGET_USER" bash -c "cd '$ROOT_DIR' && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter '$BIN_SRC'"
         else
             (cd "$ROOT_DIR" && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter "$BIN_SRC")
