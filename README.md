@@ -10,7 +10,7 @@ Hardware enablement scripts and daemon for the **ASUS Zenbook 14X OLED (`UX5401`
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-ux5401-linux/main/install.sh -o install.sh && sudo bash install.sh --all && rm -f install.sh
+curl -fsSL https://raw.githubusercontent.com/marcscodebase/asus-zenbook-ux5401-linux/main/install.sh -o /tmp/asus-ux5401-install.sh && sudo bash /tmp/asus-ux5401-install.sh --all && rm -f /tmp/asus-ux5401-install.sh
 ```
 
 Or from a local clone:
