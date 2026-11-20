@@ -41,7 +41,7 @@ install_camera_shutter() {
     if command -v cargo >/dev/null 2>&1 && [[ -f "$ROOT_DIR/Cargo.toml" ]]; then
         info "Building latest asus-camera-shutter from Rust source..."
         if [[ "$TARGET_USER" != "root" && -w "$ROOT_DIR" ]]; then
-            sudo -u "$TARGET_USER" bash -c "cd '$ROOT_DIR' && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter '$BIN_SRC'"
+            sudo -Hu "$TARGET_USER" bash -c "cd '$ROOT_DIR' && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter '$BIN_SRC'"
         else
             (cd "$ROOT_DIR" && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter "$BIN_SRC")
         fi
@@ -62,7 +62,8 @@ install_camera_shutter() {
     info "Installing and starting asus-camera-hotkey service..."
     install -m 644 "$ROOT_DIR/assets/services/asus-camera-hotkey.service" /etc/systemd/system/asus-camera-hotkey.service
     systemctl daemon-reload
-    systemctl enable --now asus-camera-hotkey.service
+    systemctl enable asus-camera-hotkey.service
+    systemctl restart asus-camera-hotkey.service
     ok "asus-camera-hotkey.service is enabled and running."
 
     echo -e "\e[36mTip: Press F10 to test your electronic camera privacy shutter!\e[0m"

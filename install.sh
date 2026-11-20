@@ -62,7 +62,7 @@ configure_desktop_shortcuts() {
         if [[ -S "$RUNTIME_DIR/bus" ]] && command -v gsettings >/dev/null 2>&1; then
             # On Zenbook UX5401ZA, F11 emits Super+Shift+S (Windows Snipping Tool chord),
             # while other ASUS models emit XF86SelectiveScreenshot. Bind both plus Print.
-            if sudo -u "$TARGET_USER" \
+            if sudo -Hu "$TARGET_USER" \
                 XDG_RUNTIME_DIR="$RUNTIME_DIR" \
                 DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME_DIR/bus" \
                 gsettings set org.gnome.shell.keybindings show-screenshot-ui \

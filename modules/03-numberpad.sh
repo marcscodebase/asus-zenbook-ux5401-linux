@@ -134,22 +134,22 @@ EOF
     fi
 
     info "Setting up Python virtual environment for $TARGET_USER ($SESSION_TYPE)..."
-    sudo -u "$TARGET_USER" virtualenv --python=/usr/bin/python3 --system-site-packages "$DRIVER_DIR/.env"
-    sudo -u "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet --upgrade pip setuptools
-    sudo -u "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet \
+    sudo -Hu "$TARGET_USER" virtualenv --python=/usr/bin/python3 --system-site-packages "$DRIVER_DIR/.env"
+    sudo -Hu "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet --upgrade pip setuptools
+    sudo -Hu "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet \
         -r "$DRIVER_DIR/requirements.txt" \
         -r "$DRIVER_DIR/requirements.systemd.txt"
 
     if [[ "$SESSION_TYPE" == "x11" ]]; then
-        sudo -u "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet -r "$DRIVER_DIR/requirements.x11.txt"
+        sudo -Hu "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet -r "$DRIVER_DIR/requirements.x11.txt"
     else
-        sudo -u "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet -r "$DRIVER_DIR/requirements.wayland.txt"
+        sudo -Hu "$TARGET_USER" "$DRIVER_DIR/.env/bin/pip" install --quiet -r "$DRIVER_DIR/requirements.wayland.txt"
     fi
     ok "Python environment and dependencies installed."
 
     info "Installing systemd user service for $TARGET_USER (layout: $LAYOUT_NAME)..."
     local USER_SYSTEMD_DIR="$TARGET_HOME/.config/systemd/user"
-    sudo -u "$TARGET_USER" mkdir -p "$USER_SYSTEMD_DIR"
+    sudo -Hu "$TARGET_USER" mkdir -p "$USER_SYSTEMD_DIR"
 
     cat << EOF > "$USER_SYSTEMD_DIR/asus_numberpad_driver@.service"
 [Unit]
@@ -175,15 +175,19 @@ EOF
     chown "$TARGET_USER:" "$USER_SYSTEMD_DIR/asus_numberpad_driver@.service"
 
     if [[ -S "$TARGET_RUNTIME_DIR/bus" ]]; then
-        sudo -u "$TARGET_USER" \
+        sudo -Hu "$TARGET_USER" \
             XDG_RUNTIME_DIR="$TARGET_RUNTIME_DIR" \
             DBUS_SESSION_BUS_ADDRESS="$TARGET_DBUS" \
             systemctl --user daemon-reload
-        sudo -u "$TARGET_USER" \
+        sudo -Hu "$TARGET_USER" \
             XDG_RUNTIME_DIR="$TARGET_RUNTIME_DIR" \
             DBUS_SESSION_BUS_ADDRESS="$TARGET_DBUS" \
-            systemctl --user enable --now "asus_numberpad_driver@${TARGET_USER}.service" || true
-        ok "ASUS NumberPad user service enabled and started."
+            systemctl --user enable "asus_numberpad_driver@${TARGET_USER}.service" || true
+        sudo -Hu "$TARGET_USER" \
+            XDG_RUNTIME_DIR="$TARGET_RUNTIME_DIR" \
+            DBUS_SESSION_BUS_ADDRESS="$TARGET_DBUS" \
+            systemctl --user restart "asus_numberpad_driver@${TARGET_USER}.service" || true
+        ok "ASUS NumberPad user service enabled and running."
     else
         warn "No active user D-Bus session found. Enable after login with:"
         warn "  systemctl --user enable --now asus_numberpad_driver@${TARGET_USER}.service"
