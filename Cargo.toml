@@ -2,7 +2,7 @@
 name = "asus-camera-shutter"
 version = "0.1.0"
 edition = "2021"
-authors = ["Marc Saier <marc98711@gmail.com>"]
+authors = ["Marc Saier <marc@saier.io>"]
 description = "High-performance ASUS Zenbook E-Shutter camera controller and F10 hotkey listener daemon"
 license = "MIT"
 
