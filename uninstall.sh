@@ -24,4 +24,17 @@ for mod in 01-fingerprint.sh 02-camera-shutter.sh 03-numberpad.sh 04-micmute-led
     fi
 done
 
+TARGET_USER="${SUDO_USER:-$USER}"
+if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
+    TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
+    RUNTIME_DIR="/run/user/$TARGET_UID"
+    if [[ -S "$RUNTIME_DIR/bus" ]] && command -v gsettings >/dev/null 2>&1; then
+        info "Resetting GNOME screenshot keybinding to default..."
+        sudo -u "$TARGET_USER" \
+            XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME_DIR/bus" \
+            gsettings reset org.gnome.shell.keybindings show-screenshot-ui 2>/dev/null || true
+    fi
+fi
+
 ok "Uninstallation complete. All configurations reverted."

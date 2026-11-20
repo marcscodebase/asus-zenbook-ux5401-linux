@@ -1,5 +1,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
+use std::os::unix::fs::MetadataExt;
+use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,7 +18,6 @@ const CMD_STATUS: &str = "\\_SB.ATKD.WMNB 0x00 0x53545344 0x00060078";
 
 const EV_KEY: u16 = 1;
 const KEY_CAMERA: u16 = 212;
-const KEY_SELECTIVE_SCREENSHOT: u16 = 634; // 0x27a (F11 Snipping Tool)
 const INPUT_EVENT_SIZE: usize = 24; // 64-bit Linux input_event size
 
 fn ensure_acpi_call() -> io::Result<()> {
@@ -46,14 +47,20 @@ fn send_desktop_notification(state: &str) {
         ("Kamera aktiv (Blende geöffnet)", "camera-web")
     };
 
-    // Broadcast notification to all active GUI user sessions
+    // Broadcast notification to all active GUI user sessions as the session owner
     if let Ok(entries) = fs::read_dir("/run/user") {
         for entry in entries.flatten() {
             if let Ok(file_name) = entry.file_name().into_string() {
                 if let Ok(uid) = file_name.parse::<u32>() {
-                    let bus_path = format!("/run/user/{}/bus", uid);
+                    let runtime_dir = format!("/run/user/{}", uid);
+                    let bus_path = format!("{}/bus", runtime_dir);
                     if Path::new(&bus_path).exists() {
-                        let _ = Command::new("notify-send")
+                        let gid = entry
+                            .metadata()
+                            .map(|m| m.gid())
+                            .unwrap_or(uid);
+                        let mut cmd = Command::new("notify-send");
+                        cmd.env("XDG_RUNTIME_DIR", &runtime_dir)
                             .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", bus_path))
                             .args([
                                 "-a",
@@ -64,13 +71,30 @@ fn send_desktop_notification(state: &str) {
                                 "string:x-canonical-private-synchronous:asus-camera",
                                 "Kamera-Blende",
                                 msg,
-                            ])
-                            .status();
+                            ]);
+                        // Drop privileges when running as root so session D-Bus accepts the message
+                        if is_running_as_root() {
+                            cmd.gid(gid).uid(uid);
+                        }
+                        let _ = cmd.status();
                     }
                 }
             }
         }
     }
+}
+
+fn is_running_as_root() -> bool {
+    if let Ok(status) = fs::read_to_string("/proc/self/status") {
+        for line in status.lines() {
+            if let Some(rest) = line.strip_prefix("Uid:") {
+                if let Some(euid) = rest.split_whitespace().nth(1) {
+                    return euid == "0";
+                }
+            }
+        }
+    }
+    false
 }
 
 pub fn get_status() -> String {
@@ -119,30 +143,6 @@ pub fn shutter_toggle() -> io::Result<()> {
         shutter_open()
     } else {
         shutter_close()
-    }
-}
-
-fn trigger_screenshot() {
-    println!("F11 Snipping Tool key pressed! Notifying GNOME session...");
-    if let Ok(entries) = fs::read_dir("/run/user") {
-        for entry in entries.flatten() {
-            if let Ok(file_name) = entry.file_name().into_string() {
-                if let Ok(uid) = file_name.parse::<u32>() {
-                    let bus_path = format!("/run/user/{}/bus", uid);
-                    if Path::new(&bus_path).exists() {
-                        let _ = Command::new("gsettings")
-                            .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", bus_path))
-                            .args([
-                                "set",
-                                "org.gnome.shell.keybindings",
-                                "show-screenshot-ui",
-                                "['Print', 'XF86SelectiveScreenshot']",
-                            ])
-                            .status();
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -206,14 +206,10 @@ pub fn run_daemon(running: Arc<AtomicBool>) {
                     let ev_code = u16::from_ne_bytes([buf[18], buf[19]]);
                     let ev_value = i32::from_ne_bytes([buf[20], buf[21], buf[22], buf[23]]);
 
-                    if ev_type == EV_KEY && ev_value == 1 {
-                        if ev_code == KEY_CAMERA {
-                            println!("F10 Camera hotkey pressed! Toggling shutter...");
-                            if let Err(e) = shutter_toggle() {
-                                eprintln!("Error toggling camera shutter: {}", e);
-                            }
-                        } else if ev_code == KEY_SELECTIVE_SCREENSHOT {
-                            trigger_screenshot();
+                    if ev_type == EV_KEY && ev_value == 1 && ev_code == KEY_CAMERA {
+                        println!("F10 Camera hotkey pressed! Toggling shutter...");
+                        if let Err(e) = shutter_toggle() {
+                            eprintln!("Error toggling camera shutter: {}", e);
                         }
                     }
                 }

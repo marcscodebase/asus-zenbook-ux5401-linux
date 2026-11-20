@@ -55,13 +55,25 @@ print_banner() {
 configure_desktop_shortcuts() {
     info "Configuring F11 Snipping Tool keybinding for GNOME..."
     local TARGET_USER="${SUDO_USER:-$USER}"
-    if [[ -n "$TARGET_USER" ]]; then
+    if [[ -n "$TARGET_USER" && "$TARGET_USER" != "root" ]]; then
         local TARGET_UID
         TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
-        if [[ -d "/run/user/$TARGET_UID" ]]; then
-            sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
-                gsettings set org.gnome.shell.keybindings show-screenshot-ui "['Print', 'XF86SelectiveScreenshot']" 2>/dev/null || true
-            ok "F11 Snipping Tool keybinding configured."
+        local RUNTIME_DIR="/run/user/$TARGET_UID"
+        if [[ -S "$RUNTIME_DIR/bus" ]] && command -v gsettings >/dev/null 2>&1; then
+            # On Zenbook UX5401ZA, F11 emits Super+Shift+S (Windows Snipping Tool chord),
+            # while other ASUS models emit XF86SelectiveScreenshot. Bind both plus Print.
+            if sudo -u "$TARGET_USER" \
+                XDG_RUNTIME_DIR="$RUNTIME_DIR" \
+                DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME_DIR/bus" \
+                gsettings set org.gnome.shell.keybindings show-screenshot-ui \
+                "['Print', 'XF86SelectiveScreenshot', '<Super><Shift>s']"; then
+                ok "F11 Snipping Tool keybinding configured (<Super><Shift>s + XF86SelectiveScreenshot)."
+            else
+                warn "Failed to apply GNOME screenshot shortcut via gsettings."
+            fi
+        else
+            warn "No active GNOME D-Bus session found for $TARGET_USER. Run manually after login:"
+            warn "  gsettings set org.gnome.shell.keybindings show-screenshot-ui \"['Print', 'XF86SelectiveScreenshot', '<Super><Shift>s']\""
         fi
     fi
 }
@@ -114,6 +126,7 @@ show_menu() {
     echo "  [3] ASUS NumberPad 2.0 (Touchpad numeric keypad driver - Automated)"
     echo "  [4] Microphone Mute LED Sync (F9 indicator trigger)"
     echo "  [5] Battery Health Charging (80% charge threshold)"
+    echo "  [6] Desktop Hotkeys (F11 Snipping Tool -> GNOME Screenshot UI)"
     echo "  [A] Activate ALL features (Recommended)"
     echo "  [Q] Quit"
     echo ""
@@ -126,6 +139,7 @@ show_menu() {
         3) run_module "03-numberpad.sh" ;;
         4) run_module "04-micmute-led.sh" ;;
         5) run_module "05-battery-care.sh" ;;
+        6) configure_desktop_shortcuts ;;
         a|all) install_all ;;
         q|quit) echo "Aborted."; exit 0 ;;
         *) err "Invalid option: $choice"; exit 1 ;;
@@ -154,8 +168,11 @@ if [[ $# -gt 0 ]]; then
         --battery)
             run_module "05-battery-care.sh"
             ;;
+        --shortcuts)
+            configure_desktop_shortcuts
+            ;;
         --help|-h)
-            echo "Usage: sudo $0 [--all|--fingerprint|--camera|--numberpad|--micmute|--battery]"
+            echo "Usage: sudo $0 [--all|--fingerprint|--camera|--numberpad|--micmute|--battery|--shortcuts]"
             exit 0
             ;;
         *)
