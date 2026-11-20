@@ -163,14 +163,15 @@ Type=simple
 ExecStart=$DRIVER_DIR/.env/bin/python3 $DRIVER_DIR/numberpad.py $LAYOUT_NAME $DRIVER_DIR/
 TimeoutSec=5
 Restart=on-failure
-RestartSec=1
+RestartSec=2
 StandardOutput=null
 StandardError=null
-PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR XDG_SESSION_TYPE DBUS_SESSION_BUS_ADDRESS
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+Environment="XDG_SESSION_TYPE=$SESSION_TYPE"
 Environment="PATH=/usr/sbin:/usr/bin:/bin"
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target default.target
 EOF
     chown "$TARGET_USER:" "$USER_SYSTEMD_DIR/asus_numberpad_driver@.service"
 
