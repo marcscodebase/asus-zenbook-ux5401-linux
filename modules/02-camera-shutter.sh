@@ -15,23 +15,31 @@ warn()  { echo -e "\e[33m[WARN]\e[0m $*"; }
 err()   { echo -e "\e[31m[ERROR]\e[0m $*" >&2; }
 
 install_camera_shutter() {
-    info "Installing acpi_call kernel module..."
-    if ! pacman -Qs "acpi_call" >/dev/null; then
-        pacman -S --noconfirm --needed acpi_call
+    info "Installing acpi_call-dkms kernel module for running kernel..."
+    if ! pacman -Qs "^acpi_call-dkms$" >/dev/null; then
+        pacman -R --noconfirm acpi_call 2>/dev/null || true
+        pacman -S --noconfirm --needed acpi_call-dkms
     fi
 
     # Ensure acpi_call loads on boot
     echo "acpi_call" > /etc/modules-load.d/acpi_call.conf
     modprobe acpi_call 2>/dev/null || true
+
+    if [[ ! -e "/proc/acpi/call" ]]; then
+        warn "/proc/acpi/call not active yet. Triggering DKMS build..."
+        dkms autoinstall 2>/dev/null || true
+        modprobe acpi_call 2>/dev/null || true
+    fi
+
     ok "Kernel module acpi_call configured and loaded."
 
     info "Deploying asus-camera-shutter binary..."
     local BIN_SRC="$ROOT_DIR/bin/asus-camera-shutter"
 
-    # If cargo is available and source exists, we can optionally build from source
-    if command -v cargo >/dev/null 2>&1 && [[ -f "$ROOT_DIR/Cargo.toml" && ! -f "$BIN_SRC" ]]; then
-        info "Building asus-camera-shutter from Rust source..."
-        (cd "$ROOT_DIR" && cargo build --release && cp target/release/asus-camera-shutter "$BIN_SRC")
+    # If cargo is available and source exists, build release binary
+    if command -v cargo >/dev/null 2>&1 && [[ -f "$ROOT_DIR/Cargo.toml" ]]; then
+        info "Building latest asus-camera-shutter from Rust source..."
+        (cd "$ROOT_DIR" && cargo build --release && strip target/release/asus-camera-shutter && cp target/release/asus-camera-shutter "$BIN_SRC")
     fi
 
     if [[ ! -f "$BIN_SRC" ]]; then

@@ -16,6 +16,7 @@ const CMD_STATUS: &str = "\\_SB.ATKD.WMNB 0x00 0x53545344 0x00060078";
 
 const EV_KEY: u16 = 1;
 const KEY_CAMERA: u16 = 212;
+const KEY_SELECTIVE_SCREENSHOT: u16 = 634; // 0x27a (F11 Snipping Tool)
 const INPUT_EVENT_SIZE: usize = 24; // 64-bit Linux input_event size
 
 fn ensure_acpi_call() -> io::Result<()> {
@@ -121,6 +122,30 @@ pub fn shutter_toggle() -> io::Result<()> {
     }
 }
 
+fn trigger_screenshot() {
+    println!("F11 Snipping Tool key pressed! Notifying GNOME session...");
+    if let Ok(entries) = fs::read_dir("/run/user") {
+        for entry in entries.flatten() {
+            if let Ok(file_name) = entry.file_name().into_string() {
+                if let Ok(uid) = file_name.parse::<u32>() {
+                    let bus_path = format!("/run/user/{}/bus", uid);
+                    if Path::new(&bus_path).exists() {
+                        let _ = Command::new("gsettings")
+                            .env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", bus_path))
+                            .args([
+                                "set",
+                                "org.gnome.shell.keybindings",
+                                "show-screenshot-ui",
+                                "['Print', 'XF86SelectiveScreenshot']",
+                            ])
+                            .status();
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn find_hotkey_device() -> Option<PathBuf> {
     let by_path = PathBuf::from("/dev/input/by-path/platform-asus-nb-wmi-event");
     if by_path.exists() {
@@ -181,10 +206,14 @@ pub fn run_daemon(running: Arc<AtomicBool>) {
                     let ev_code = u16::from_ne_bytes([buf[18], buf[19]]);
                     let ev_value = i32::from_ne_bytes([buf[20], buf[21], buf[22], buf[23]]);
 
-                    if ev_type == EV_KEY && ev_code == KEY_CAMERA && ev_value == 1 {
-                        println!("F10 Camera hotkey pressed! Toggling shutter...");
-                        if let Err(e) = shutter_toggle() {
-                            eprintln!("Error toggling camera shutter: {}", e);
+                    if ev_type == EV_KEY && ev_value == 1 {
+                        if ev_code == KEY_CAMERA {
+                            println!("F10 Camera hotkey pressed! Toggling shutter...");
+                            if let Err(e) = shutter_toggle() {
+                                eprintln!("Error toggling camera shutter: {}", e);
+                            }
+                        } else if ev_code == KEY_SELECTIVE_SCREENSHOT {
+                            trigger_screenshot();
                         }
                     }
                 }
@@ -251,5 +280,3 @@ fn main() {
         }
     }
 }
-
-

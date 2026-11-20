@@ -2,6 +2,7 @@
 # ==============================================================================
 # Module 03: ASUS NumberPad 2.0 (Touchpad Numpad) Driver
 # Supports ASUE140D / ASUS touchpad with integrated numeric keypad
+# Fully automated installation (layout ux433fa, key 6) without prompts
 # ==============================================================================
 
 set -euo pipefail
@@ -27,41 +28,51 @@ install_numberpad() {
     modprobe i2c-dev 2>/dev/null || true
     ok "i2c-dev module configured."
 
-    # Install dependencies
-    pacman -S --noconfirm --needed i2c-tools python python-libevdev 2>/dev/null || \
-    pacman -S --noconfirm --needed i2c-tools python
+    # Install required dependencies
+    info "Installing driver dependencies..."
+    pacman -S --noconfirm --needed i2c-tools python python-libevdev git
 
-    info "Installing asus-numberpad-driver..."
-    local TARGET_USER="${SUDO_USER:-$USER}"
+    info "Setting up ASUS NumberPad driver (automated for ux433fa / UX5401 layout)..."
+    local DRIVER_DIR="/usr/share/asus_touchpad_numpad-driver"
+    local CLONE_DIR="/tmp/asus-touchpad-numpad-driver-repo"
 
-    if pacman -Qs "asus-touchpad-numpad-driver" >/dev/null; then
-        ok "asus-touchpad-numpad-driver is already installed."
-    elif command -v paru >/dev/null 2>&1; then
-        sudo -u "$TARGET_USER" paru -S --noconfirm --needed asus-touchpad-numpad-driver || true
-    elif command -v yay >/dev/null 2>&1; then
-        sudo -u "$TARGET_USER" yay -S --noconfirm --needed asus-touchpad-numpad-driver || true
-    fi
+    rm -rf "$CLONE_DIR"
+    git clone --depth 1 https://github.com/mohamed-badaoui/asus-touchpad-numpad-driver.git "$CLONE_DIR"
 
-    # Fallback git installer if AUR was skipped or unavailable
-    if ! systemctl list-unit-files | grep -qi "asus_touchpad_numpad"; then
-        info "Setting up driver from asus-linux-drivers repository..."
-        local CLONE_DIR="/tmp/asus-numberpad-driver"
-        rm -rf "$CLONE_DIR"
-        sudo -u "$TARGET_USER" git clone https://github.com/asus-linux-drivers/asus-numberpad-driver.git "$CLONE_DIR"
-        (cd "$CLONE_DIR" && ./install.sh --auto || true)
-        rm -rf "$CLONE_DIR"
-    fi
+    mkdir -p "$DRIVER_DIR/numpad_layouts"
+    install -Dm755 "$CLONE_DIR/asus_touchpad.py" "$DRIVER_DIR/asus_touchpad.py"
+    install -Dm755 "$CLONE_DIR"/numpad_layouts/*.py -t "$DRIVER_DIR/numpad_layouts"
+    rm -rf "$CLONE_DIR"
+
+    # Install systemd service with fixed parameters for Zenbook 14 (ux433fa layout, key 6)
+    cat << 'EOF' > /etc/systemd/system/asus_touchpad_numpad.service
+[Unit]
+Description=Asus Touchpad NumberPad Driver
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/share/asus_touchpad_numpad-driver/asus_touchpad.py ux433fa 6
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
     systemctl daemon-reload
-    systemctl enable --now asus_touchpad_numpad.service 2>/dev/null || true
-    ok "ASUS NumberPad driver setup finished."
-    echo -e "\e[36mTip: Tap and hold the top-right corner of the touchpad to toggle the numeric keypad!\e[0m"
+    systemctl enable --now asus_touchpad_numpad.service
+    ok "ASUS NumberPad driver installed and service started."
+    echo -e "\e[36mTip: Halte die obere rechte Ecke des Touchpads für ca. 1 Sekunde gedrückt, um das Numpad ein-/auszuschalten!\e[0m"
 }
 
 uninstall_numberpad() {
     info "Disabling asus_touchpad_numpad service..."
     systemctl disable --now asus_touchpad_numpad.service 2>/dev/null || true
+    rm -f /etc/systemd/system/asus_touchpad_numpad.service
+    rm -rf /usr/share/asus_touchpad_numpad-driver
     rm -f /etc/modules-load.d/i2c-dev.conf
+    systemctl daemon-reload
     ok "NumberPad driver disabled."
 }
 

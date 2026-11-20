@@ -52,6 +52,20 @@ print_banner() {
     echo "-----------------------------------------------------------------"
 }
 
+configure_desktop_shortcuts() {
+    info "Configuring F11 Snipping Tool keybinding for GNOME..."
+    local TARGET_USER="${SUDO_USER:-$USER}"
+    if [[ -n "$TARGET_USER" ]]; then
+        local TARGET_UID
+        TARGET_UID=$(id -u "$TARGET_USER" 2>/dev/null || echo "1000")
+        if [[ -d "/run/user/$TARGET_UID" ]]; then
+            sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$TARGET_UID/bus" \
+                gsettings set org.gnome.shell.keybindings show-screenshot-ui "['Print', 'XF86SelectiveScreenshot']" 2>/dev/null || true
+            ok "F11 Snipping Tool keybinding configured."
+        fi
+    fi
+}
+
 run_module() {
     local mod="$1"
     local script="$MODULES_DIR/$mod"
@@ -75,17 +89,20 @@ install_all() {
     echo ""
     run_module "05-battery-care.sh"
     echo ""
+    configure_desktop_shortcuts
+    echo ""
     ok "All ASUS Zenbook UX5401 fixes successfully applied!"
     echo -e "\e[32m"
     echo "================================================================="
     echo "                      Installation Complete!                     "
     echo "================================================================="
     echo -e "\e[0m"
-    echo "✓ Fingerprint: Sensor enabled for sudo, polkit, and login."
-    echo "✓ E-Shutter:   F10 key toggles physical camera shield + OSD."
-    echo "✓ NumberPad:   Hold top-right corner of touchpad to toggle."
-    echo "✓ Mic Mute:    F9 indicator LED synchronized."
-    echo "✓ Battery:     Health charge threshold capped at 80%."
+    echo "✓ Fingerprint:   Sensor enabled for sudo, polkit, and login."
+    echo "✓ E-Shutter:     F10 key toggles physical camera shield + OSD."
+    echo "✓ Snipping Tool: F11 key opens interactive screenshot overlay."
+    echo "✓ NumberPad:     Hold top-right corner of touchpad for 1s to toggle."
+    echo "✓ Mic Mute:      F9 indicator LED synchronized."
+    echo "✓ Battery:       Health charge threshold capped at 80%."
     echo ""
 }
 
@@ -93,8 +110,8 @@ show_menu() {
     print_banner
     echo "Choose which features to activate:"
     echo "  [1] Fingerprint Sensor (libfprint-elanpress-git + sudo/polkit PAM)"
-    echo "  [2] Electronic Camera Shutter (acpi_call + F10 Hotkey Hook + OSD)"
-    echo "  [3] ASUS NumberPad 2.0 (Touchpad numeric keypad driver)"
+    echo "  [2] Electronic Camera Shutter (acpi_call-dkms + F10 Hotkey Hook + OSD)"
+    echo "  [3] ASUS NumberPad 2.0 (Touchpad numeric keypad driver - Automated)"
     echo "  [4] Microphone Mute LED Sync (F9 indicator trigger)"
     echo "  [5] Battery Health Charging (80% charge threshold)"
     echo "  [A] Activate ALL features (Recommended)"
